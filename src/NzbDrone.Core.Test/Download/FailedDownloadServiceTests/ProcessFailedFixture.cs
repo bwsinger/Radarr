@@ -81,6 +81,24 @@ namespace NzbDrone.Core.Test.Download.FailedDownloadServiceTests
             AssertDownloadFailed();
         }
 
+        [Test]
+        public void should_publish_below_minimum_failure_once_for_blocklist_and_redownload()
+        {
+            _trackedDownload.DownloadItem.IsEncrypted = false;
+            _trackedDownload.PreserveFilesOnFailure = true;
+
+            Subject.ProcessFailed(_trackedDownload);
+            Subject.ProcessFailed(_trackedDownload);
+
+            Mocker.GetMock<IEventAggregator>()
+                .Verify(v => v.PublishEvent(It.Is<DownloadFailedEvent>(e =>
+                    e.TrackedDownload == _trackedDownload &&
+                    e.Message.Contains("below the minimum custom format score") &&
+                    !e.SkipRedownload)),
+                    Times.Once());
+            _trackedDownload.State.Should().Be(TrackedDownloadState.Failed);
+        }
+
         private void AssertDownloadNotFailed()
         {
             Mocker.GetMock<IEventAggregator>()

@@ -29,6 +29,15 @@ namespace NzbDrone.Core.MediaFiles.MovieImport.Specifications
             var qualityProfile = localMovie.Movie.QualityProfile;
             var qualityComparer = new QualityModelComparer(qualityProfile);
 
+            if (!localMovie.ExistingFile && localMovie.CustomFormatScore < qualityProfile.MinFormatScore)
+            {
+                return ImportSpecDecision.Reject(
+                    ImportRejectionReason.BelowMinimumCustomFormatScore,
+                    "Custom Format score {0} is below the minimum required score {1}",
+                    localMovie.CustomFormatScore,
+                    qualityProfile.MinFormatScore);
+            }
+
             if (localMovie.Movie.MovieFileId > 0)
             {
                 var movieFile = localMovie.Movie.MovieFile;
