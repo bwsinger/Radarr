@@ -5,6 +5,7 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Core.Download;
+using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.MediaFiles;
@@ -40,6 +41,31 @@ namespace NzbDrone.Core.Test.HistoryTests
             var quality = Subject.GetBestQualityInHistory(_profile, 2);
 
             quality.Should().BeNull();
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void should_attribute_only_custom_score_recovery(bool customRecovery)
+        {
+            var message = new DownloadFailedEvent
+            {
+                MovieId = 123,
+                DownloadId = "torrent-hash",
+                TrackedDownload = new TrackedDownload
+                {
+                    PreserveFilesOnFailure = customRecovery,
+                    DownloadItem = new DownloadClientItem { DownloadClientInfo = new DownloadClientItemClientInfo() }
+                }
+            };
+
+            Subject.Handle(message);
+
+            Mocker.GetMock<IHistoryRepository>().Verify(
+                r => r.Insert(It.Is<MovieHistory>(h =>
+                    h.EventType == MovieHistoryEventType.DownloadFailed && h.MovieId == 123 &&
+                    h.Data.ContainsKey("DevRecovery") == customRecovery &&
+                    (!customRecovery || h.Data["DevRecovery"] == "minimum-format-score"))),
+                Times.Once());
         }
 
         [Test]
@@ -94,7 +120,8 @@ namespace NzbDrone.Core.Test.HistoryTests
             Subject.Handle(new MovieFileImportedEvent(localMovie, movieFile, new List<DeletedMovieFile>(), true, downloadClientItem));
 
             Mocker.GetMock<IHistoryRepository>()
-                .Verify(v => v.Insert(It.Is<MovieHistory>(h => h.SourceTitle == Path.GetFileNameWithoutExtension(localMovie.Path))));
+                .Verify(v => v.Insert(It.Is<MovieHistory>(h => h.SourceTitle == Path.GetFileNameWithoutExtension(localMovie.Path) &&
+                    h.Data["DevMetricsVersion"] == "1" && !h.Data.ContainsKey("DevImportFix"))));
         }
     }
 }
