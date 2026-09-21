@@ -5,6 +5,7 @@ using NUnit.Framework;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.MediaFiles.MovieImport;
 using NzbDrone.Core.MediaFiles.MovieImport.Specifications;
 using NzbDrone.Core.Movies;
 using NzbDrone.Core.Parser.Model;
@@ -34,6 +35,47 @@ namespace NzbDrone.Core.Test.MediaFiles.MovieImport.Specifications
                 Quality = new QualityModel(Quality.HDTV720p, new Revision(version: 1)),
                 Movie = _movie
             };
+        }
+
+        [TestCase(-1, 0, false)]
+        [TestCase(49, 50, false)]
+        [TestCase(-5, -10, true)]
+        [TestCase(50, 50, true)]
+        public void should_enforce_profile_minimum_for_new_movie(int score, int minimum, bool accepted)
+        {
+            _movie.MovieFileId = 0;
+            _movie.QualityProfile.MinFormatScore = minimum;
+            _localMovie.CustomFormatScore = score;
+
+            var decision = Subject.IsSatisfiedBy(_localMovie, null);
+
+            decision.Accepted.Should().Be(accepted);
+            if (!accepted)
+            {
+                decision.Reason.Should().Be(ImportRejectionReason.BelowMinimumCustomFormatScore);
+            }
+        }
+
+        [Test]
+        public void should_reject_below_minimum_even_when_quality_improves()
+        {
+            var existingFile = new MovieFile { Quality = new QualityModel(Quality.SDTV) };
+            _movie.MovieFile = existingFile;
+            _movie.MovieFileId = 1;
+            _localMovie.CustomFormatScore = -1;
+
+            Subject.IsSatisfiedBy(_localMovie, null).Reason.Should().Be(ImportRejectionReason.BelowMinimumCustomFormatScore);
+            _movie.MovieFile.Should().BeSameAs(existingFile);
+        }
+
+        [Test]
+        public void should_not_apply_minimum_to_existing_library_file()
+        {
+            _movie.MovieFileId = 0;
+            _localMovie.ExistingFile = true;
+            _localMovie.CustomFormatScore = -1;
+
+            Subject.IsSatisfiedBy(_localMovie, null).Accepted.Should().BeTrue();
         }
 
         [Test]

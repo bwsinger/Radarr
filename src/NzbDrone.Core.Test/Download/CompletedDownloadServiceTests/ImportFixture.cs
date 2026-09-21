@@ -7,6 +7,7 @@ using NzbDrone.Common.Disk;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
+using NzbDrone.Core.Indexers;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.MovieImport;
 using NzbDrone.Core.Messaging.Events;
@@ -207,6 +208,146 @@ namespace NzbDrone.Core.Test.Download
             Subject.Import(_trackedDownload);
 
             AssertImported();
+        }
+
+        [Test]
+        public void should_not_automatically_fail_usenet_download()
+        {
+            GivenBelowMinimumDownload();
+            _trackedDownload.Protocol = DownloadProtocol.Usenet;
+
+            Subject.Import(_trackedDownload);
+
+            _trackedDownload.State.Should().NotBe(TrackedDownloadState.FailedPending);
+            _trackedDownload.PreserveFilesOnFailure.Should().BeFalse();
+        }
+
+        private List<ImportResult> GivenBelowMinimumDownload(bool grabbed = true)
+        {
+            _trackedDownload.PreserveFilesOnFailure = false;
+            _trackedDownload.Protocol = DownloadProtocol.Torrent;
+            _trackedDownload.RemoteMovie.Movie.Id = 42;
+            var results = new List<ImportResult>
+            {
+                new ImportResult(new ImportDecision(new LocalMovie { Path = "/downloads/movie.mkv", Movie = _trackedDownload.RemoteMovie.Movie }, new ImportRejection(ImportRejectionReason.BelowMinimumCustomFormatScore, "Below minimum")), "Below minimum")
+            };
+
+            Mocker.GetMock<IDownloadedMovieImportService>()
+                .Setup(v => v.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Movie>(), It.IsAny<DownloadClientItem>()))
+                .Returns(results);
+            Mocker.GetMock<IHistoryService>()
+                .Setup(s => s.FindByDownloadId(It.IsAny<string>()))
+                .Returns(grabbed ? new List<MovieHistory> { new MovieHistory { EventType = MovieHistoryEventType.Grabbed, MovieId = _trackedDownload.RemoteMovie.Movie.Id } } : new List<MovieHistory>());
+            return results;
+        }
+
+        [Test]
+        public void should_fail_completed_below_minimum_download_and_retain_payload()
+        {
+            GivenBelowMinimumDownload();
+            _trackedDownload.DownloadItem.CanBeRemoved = false;
+
+            Subject.Import(_trackedDownload);
+
+            _trackedDownload.State.Should().Be(TrackedDownloadState.FailedPending);
+            _trackedDownload.PreserveFilesOnFailure.Should().BeTrue();
+            _trackedDownload.DownloadItem.CanBeRemoved.Should().BeTrue();
+            Mocker.GetMock<IEventAggregator>().Verify(v => v.PublishEvent(It.IsAny<DownloadCompletedEvent>()), Times.Never());
+        }
+
+        [Test]
+        public void should_not_fail_download_without_grab_history()
+        {
+            GivenBelowMinimumDownload(false);
+
+            Subject.Import(_trackedDownload);
+
+            AssertNotImported();
+            _trackedDownload.PreserveFilesOnFailure.Should().BeFalse();
+        }
+
+        [TestCase(DownloadItemStatus.Downloading)]
+        [TestCase(DownloadItemStatus.Paused)]
+        public void should_not_fail_unfinished_download(DownloadItemStatus status)
+        {
+            GivenBelowMinimumDownload();
+            _trackedDownload.DownloadItem.Status = status;
+
+            Subject.Import(_trackedDownload);
+
+            AssertNotImported();
+        }
+
+        [TestCase(ImportRejectionReason.UnableToParse)]
+        [TestCase(ImportRejectionReason.FileLocked)]
+        [TestCase(ImportRejectionReason.NotCustomFormatUpgrade)]
+        public void should_not_fail_mixed_or_uncertain_results(ImportRejectionReason reason)
+        {
+            GivenBelowMinimumDownload().Add(new ImportResult(new ImportDecision(new LocalMovie { Path = "/downloads/other.mkv" }, new ImportRejection(reason, "Other rejection")), "Other rejection"));
+
+            Subject.Import(_trackedDownload);
+
+            AssertNotImported();
+        }
+
+        [Test]
+        public void should_not_fail_file_with_additional_rejection()
+        {
+            var results = GivenBelowMinimumDownload();
+            results[0] = new ImportResult(new ImportDecision(new LocalMovie { Path = "/downloads/movie.mkv", Movie = _trackedDownload.RemoteMovie.Movie }, new ImportRejection(ImportRejectionReason.BelowMinimumCustomFormatScore, "Below minimum"), new ImportRejection(ImportRejectionReason.DecisionError, "Decision error")), "Rejected");
+
+            Subject.Import(_trackedDownload);
+
+            AssertNotImported();
+        }
+
+        [Test]
+        public void should_not_fail_if_another_file_was_imported()
+        {
+            GivenBelowMinimumDownload().Add(new ImportResult(new ImportDecision(new LocalMovie
+            {
+                Path = "/downloads/accepted.mkv",
+                Movie = _trackedDownload.RemoteMovie.Movie
+            })));
+
+            Subject.Import(_trackedDownload);
+
+            AssertImported();
+            _trackedDownload.PreserveFilesOnFailure.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_not_fail_existing_library_file()
+        {
+            GivenBelowMinimumDownload()[0].ImportDecision.LocalMovie.ExistingFile = true;
+
+            Subject.Import(_trackedDownload);
+
+            AssertNotImported();
+        }
+
+        [Test]
+        public void should_not_fail_download_grabbed_for_another_movie()
+        {
+            GivenBelowMinimumDownload();
+            Mocker.GetMock<IHistoryService>()
+                .Setup(s => s.FindByDownloadId(It.IsAny<string>()))
+                .Returns(new List<MovieHistory> { new MovieHistory { EventType = MovieHistoryEventType.Grabbed, MovieId = _trackedDownload.RemoteMovie.Movie.Id + 1 } });
+
+            Subject.Import(_trackedDownload);
+
+            AssertNotImported();
+            _trackedDownload.PreserveFilesOnFailure.Should().BeFalse();
+        }
+
+        [Test]
+        public void should_not_fail_import_mapped_to_another_movie()
+        {
+            GivenBelowMinimumDownload()[0].ImportDecision.LocalMovie.Movie = new Movie { Id = _trackedDownload.RemoteMovie.Movie.Id + 1 };
+
+            Subject.Import(_trackedDownload);
+
+            AssertNotImported();
         }
 
         private void AssertNotImported()
