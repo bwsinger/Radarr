@@ -36,6 +36,14 @@ only covers part of a feature, keep and document only the remaining difference.
   an existing library file as a side effect of rejecting a download.
 
 - Episode-number/title parsing does not apply to Radarr (movies).
+- Benefit metrics use existing History.Data: `DevMetricsVersion=1` on successful
+  new-download imports, and `DevRecovery=minimum-format-score` on custom score
+  failures. Log `DevBenefit` after saving those failures. These are recovery
+  events, not successful imports or proof of a regression. Radarr currently has
+  no parsing-assisted import feature, so it must not claim parsing credit.
+- Read counts and percentages with `media-server-v2/scripts/arr_dev_benefits.py`.
+  Only instrumented, retained history is comparable; do not invent old tags or
+  treat unmeasured regressions as zero. Preserve the history keys on upgrades.
 
 ## Build, test and deployment
 

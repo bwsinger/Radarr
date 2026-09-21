@@ -25,3 +25,11 @@ Its `broken_report_shouldnt_blowup_the_process` test expects three error log
 messages and observes zero. The same failure was reproduced in a separate,
 untouched worktree at upstream tag `v6.4.4.10685`. This patch does not change
 that decision-engine path.
+
+## Benefit instrumentation — 2026-09-21
+
+- History and failure-recovery fixtures: 13 passed, zero failures.
+- Successful imports receive a versioned denominator marker; custom score
+  recovery receives a separate durable marker and post-insert Info log.
+- No Radarr parsing-assisted success is claimed: the maintained Radarr patches
+  protect quality and recover rejected downloads.

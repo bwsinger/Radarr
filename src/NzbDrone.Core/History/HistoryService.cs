@@ -212,6 +212,7 @@ namespace NzbDrone.Core.History
             history.Data.Add("CustomFormatScore", message.MovieInfo.CustomFormatScore.ToString());
             history.Data.Add("Size", message.MovieInfo.Size.ToString());
             history.Data.Add("IndexerFlags", message.ImportedMovie.IndexerFlags.ToString());
+            history.Data.Add("DevMetricsVersion", "1");
 
             _historyRepository.Insert(history);
         }
@@ -318,7 +319,18 @@ namespace NzbDrone.Core.History
             history.Data.Add("Size", message.TrackedDownload?.DownloadItem.TotalSize.ToString() ?? message.Data.GetValueOrDefault(MovieHistory.SIZE));
             history.Data.Add("Indexer", message.TrackedDownload?.RemoteMovie?.Release?.Indexer ?? message.Data.GetValueOrDefault(MovieHistory.INDEXER));
 
+            if (message.TrackedDownload?.PreserveFilesOnFailure == true)
+            {
+                history.Data.Add("DevMetricsVersion", "1");
+                history.Data.Add("DevRecovery", "minimum-format-score");
+            }
+
             _historyRepository.Insert(history);
+
+            if (history.Data.ContainsKey("DevRecovery"))
+            {
+                _logger.Info("DevBenefit outcome=score-recovery fix=minimum-format-score movieId={0} historyId={1} downloadId={2}", history.MovieId, history.Id, history.DownloadId);
+            }
         }
 
         public List<MovieHistory> Since(DateTime date, MovieHistoryEventType? eventType)
