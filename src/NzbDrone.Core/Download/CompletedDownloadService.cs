@@ -8,6 +8,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
+using NzbDrone.Core.Indexers;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.MovieImport;
 using NzbDrone.Core.Messaging.Events;
@@ -155,6 +156,28 @@ namespace NzbDrone.Core.Download
             {
                 trackedDownload.Warn("No files found are eligible for import in {0}", outputPath);
 
+                return;
+            }
+
+            var grabbedHistory = _historyService.FindByDownloadId(trackedDownload.DownloadItem.DownloadId)
+                .Where(h => h.EventType == MovieHistoryEventType.Grabbed).ToList();
+            var movieId = trackedDownload.RemoteMovie.Movie.Id;
+
+            // Fail only unambiguously rejected downloads that Radarr grabbed. Mixed results
+            // (including locked, unparseable, or partially imported files) need manual review.
+            if (trackedDownload.Protocol == DownloadProtocol.Torrent &&
+                trackedDownload.DownloadItem.Status == DownloadItemStatus.Completed &&
+                importResults.All(r => r.Result == ImportResultType.Rejected &&
+                    r.ImportDecision.LocalMovie is { ExistingFile: false } &&
+                    r.ImportDecision.LocalMovie.Movie?.Id == movieId &&
+                    r.ImportDecision.Rejections.Any() &&
+                    r.ImportDecision.Rejections.All(rejection => rejection.Reason == ImportRejectionReason.BelowMinimumCustomFormatScore)) &&
+                movieId > 0 && grabbedHistory.Any() && grabbedHistory.All(h => h.MovieId == movieId))
+            {
+                // Download client inventories may omit other categories or applications sharing
+                // the same files. Remove the torrent, but never delete data on this failure path.
+                trackedDownload.PreserveFilesOnFailure = true;
+                trackedDownload.Fail();
                 return;
             }
 
