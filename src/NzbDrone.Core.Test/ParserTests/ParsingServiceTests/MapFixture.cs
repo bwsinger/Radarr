@@ -170,5 +170,23 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
             Subject.Map(_umlautInfo, "", 0, _movieSearchCriteria).Movie.Should().Be(_movieSearchCriteria.Movie);
             Subject.Map(_umlautAltInfo, "", 0, _movieSearchCriteria).Movie.Should().Be(_movieSearchCriteria.Movie);
         }
+
+        [Test]
+        public void should_fall_back_to_requested_title_when_other_imdb_id_is_not_in_library()
+        {
+            _movie.Title = "The Odyssey";
+            _movie.Year = 2026;
+            _movie.ImdbId = "tt33764258";
+            _movie.MovieMetadata.Value.CleanTitle = "theodyssey";
+            _parsedMovieInfo.MovieTitles = new List<string> { "The Odyssey" };
+            _parsedMovieInfo.Year = 2026;
+
+            var result = Subject.Map(_parsedMovieInfo, "tt40188305", 0, _movieSearchCriteria);
+
+            // Characterize upstream's tolerance of bad indexer IDs, not proof of file identity.
+            result.Movie.Should().Be(_movie);
+            result.MovieMatchType.Should().Be(MovieMatchType.Title);
+            Mocker.GetMock<IMovieService>().Verify(s => s.FindByImdbId("tt40188305"), Times.Once());
+        }
     }
 }

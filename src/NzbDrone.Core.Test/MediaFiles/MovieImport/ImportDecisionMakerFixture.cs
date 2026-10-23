@@ -8,6 +8,7 @@ using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.MovieImport;
 using NzbDrone.Core.MediaFiles.MovieImport.Aggregation;
+using NzbDrone.Core.MediaFiles.MovieImport.Manual;
 using NzbDrone.Core.Movies;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
@@ -123,6 +124,71 @@ namespace NzbDrone.Core.Test.MediaFiles.MovieImport
             _pass1.Verify(c => c.IsSatisfiedBy(It.IsAny<LocalMovie>(), downloadClientItem), Times.Once());
             _pass2.Verify(c => c.IsSatisfiedBy(It.IsAny<LocalMovie>(), downloadClientItem), Times.Once());
             _pass3.Verify(c => c.IsSatisfiedBy(It.IsAny<LocalMovie>(), downloadClientItem), Times.Once());
+        }
+
+        [TestCase(1, false)]
+        [TestCase(2, true)]
+        public void should_preserve_known_video_file_context_for_runtime_observation(int count, bool multiple)
+        {
+            GivenAugmentationSuccess();
+            GivenSpecifications(_pass1);
+            GivenVideoFiles(Enumerable.Range(0, count).Select(i => $"/downloads/Movie.2018.part{i}.mkv"));
+            Mocker.GetMock<IDetectSample>().Setup(s => s.IsSample(It.IsAny<MovieMetadata>(), It.IsAny<string>()))
+                .Returns(DetectSampleResult.NotSample);
+
+            var decisions = Subject.GetImportDecisions(_videoFiles, _movie);
+
+            decisions.Should().HaveCount(count);
+            decisions.Should().OnlyContain(d => d.LocalMovie.OtherVideoFilesKnown && d.LocalMovie.OtherVideoFiles == multiple);
+        }
+
+        [Test]
+        public void should_keep_partial_file_inventory_unknown_for_specifications()
+        {
+            GivenAugmentationSuccess();
+            GivenSpecifications(_pass1);
+            var decisions = Subject.GetImportDecisions(_videoFiles, _movie, null, null, true, true, false);
+            decisions.Single().LocalMovie.OtherVideoFilesKnown.Should().BeFalse();
+            _pass1.Verify(s => s.IsSatisfiedBy(It.Is<LocalMovie>(m => !m.OtherVideoFilesKnown), null), Times.Once());
+        }
+
+        [Test]
+        public void should_keep_individual_manual_previews_unknown_in_an_unmapped_folder()
+        {
+            GivenAugmentationSuccess();
+            GivenSpecifications(_pass1);
+            var folder = "/downloads/misc";
+            var files = new[] { folder + "/Movie.2018.part1.mkv", folder + "/Movie.2018.part2.mkv" };
+            Mocker.GetMock<NzbDrone.Common.Disk.IDiskProvider>().Setup(s => s.FolderExists(folder)).Returns(true);
+            Mocker.GetMock<NzbDrone.Common.Disk.IDiskProvider>().Setup(s => s.GetDirectories(folder)).Returns(System.Array.Empty<string>());
+            Mocker.GetMock<IDiskScanService>().Setup(s => s.GetVideoFiles(folder, false)).Returns(files);
+            Mocker.GetMock<IDiskScanService>().Setup(s => s.FilterPaths(folder, It.IsAny<IEnumerable<string>>(), true))
+                .Returns<string, IEnumerable<string>, bool>((basePath, paths, filterExtras) => paths.ToList());
+            Mocker.GetMock<IParsingService>().Setup(s => s.GetMovie(It.Is<string>(p => p.EndsWith(".mkv")))).Returns(_movie);
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.FilterExistingFiles(It.IsAny<List<string>>(), _movie))
+                .Returns<List<string>, Movie>((paths, movie) => paths);
+            Mocker.SetConstant<IMakeImportDecision>(Subject);
+
+            Mocker.Resolve<ManualImportService>().GetMediaFiles(folder, null, null, true).Should().HaveCount(2);
+            _pass1.Verify(s => s.IsSatisfiedBy(It.Is<LocalMovie>(m => !m.OtherVideoFilesKnown), null), Times.Exactly(2));
+        }
+
+        [Test]
+        public void should_keep_individual_automatic_file_scans_unknown_for_runtime_observation()
+        {
+            GivenAugmentationSuccess();
+            GivenSpecifications(_pass1);
+            var file = "/downloads/Movie.2018.part1.mkv";
+            GivenVideoFiles(new[] { file });
+            Mocker.GetMock<NzbDrone.Common.Disk.IDiskProvider>().Setup(s => s.FolderExists(file)).Returns(false);
+            Mocker.GetMock<NzbDrone.Common.Disk.IDiskProvider>().Setup(s => s.FileExists(file)).Returns(true);
+            Mocker.GetMock<IImportApprovedMovie>().Setup(s => s.Import(It.IsAny<List<ImportDecision>>(), true, null, ImportMode.Auto))
+                .Returns(new List<ImportResult>());
+            Mocker.SetConstant<IMakeImportDecision>(Subject);
+
+            Mocker.Resolve<DownloadedMovieImportService>().ProcessPath(file, ImportMode.Auto, _movie);
+
+            _pass1.Verify(s => s.IsSatisfiedBy(It.Is<LocalMovie>(m => m.Path == file && !m.OtherVideoFilesKnown), null), Times.Once());
         }
 
         [Test]

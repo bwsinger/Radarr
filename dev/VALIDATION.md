@@ -33,3 +33,24 @@ that decision-engine path.
   recovery receives a separate durable marker and post-insert Info log.
 - No Radarr parsing-assisted success is claimed: the maintained Radarr patches
   protect quality and recover rejected downloads.
+
+## Dependency security update — 2026-10-23
+
+- 168 focused import, failure recovery, parsing/history tests passed; zero failures.
+- Full self-contained console and updater publishes each resolve their Mono
+  dependencies in one graph. This prevents separately published platform DLLs
+  from downgrading application dependencies.
+- Isolated image startup with copied SQLite configuration passed authenticated
+  system status and preserved production library counts. No network or media
+  mounts were available to the test instance.
+- Two independent review agents cleared packaging after permission, license-file
+  retention and dependency-graph corrections.
+- ImageSharp remains on the current 3.1.x release: fixed 4.1.2 requires a license.
+- Runtime updated to 8.0.32 and PKCS to 8.0.2. Existing ImageSharp audit
+  warnings remain visible. For this explicitly accepted partial update, publish
+  used `WarningsNotAsErrors=NU1902;NU1903`; no audit suppression is committed.
+
+- Preserved the deployed download-recovery and runtime-observation patches.
+  Broader validation passed 1,174 tests with 15 platform skips and the same
+  previously documented upstream `broken_report_shouldnt_blowup_the_process`
+  failure. Both independent reviewers found no blockers in the preserved code.

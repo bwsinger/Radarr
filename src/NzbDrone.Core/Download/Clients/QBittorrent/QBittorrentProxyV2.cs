@@ -190,12 +190,8 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
         {
             var request = BuildRequest(settings).Resource("/api/v2/torrents/delete")
                                                 .Post()
-                                                .AddFormParameter("hashes", hash);
-
-            if (removeData)
-            {
-                request.AddFormParameter("deleteFiles", "true");
-            }
+                                                .AddFormParameter("hashes", hash)
+                                                .AddFormParameter("deleteFiles", removeData ? "true" : "false");
 
             ProcessRequest(request, settings);
         }

@@ -11,6 +11,7 @@ using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaFiles.MovieImport.Aggregation;
+using NzbDrone.Core.MediaFiles.MovieImport.Specifications;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Movies;
@@ -37,6 +38,7 @@ namespace NzbDrone.Core.MediaFiles.MovieImport.Manual
         private readonly IImportApprovedMovie _importApprovedMovie;
         private readonly IAggregationService _aggregationService;
         private readonly ITrackedDownloadService _trackedDownloadService;
+        private readonly IProvideImportItemService _provideImportItemService;
         private readonly IDownloadedMovieImportService _downloadedMovieImportService;
         private readonly IMediaFileService _mediaFileService;
         private readonly ICustomFormatCalculationService _formatCalculator;
@@ -51,6 +53,7 @@ namespace NzbDrone.Core.MediaFiles.MovieImport.Manual
                                    IAggregationService aggregationService,
                                    IImportApprovedMovie importApprovedMovie,
                                    ITrackedDownloadService trackedDownloadService,
+                                   IProvideImportItemService provideImportItemService,
                                    IDownloadedMovieImportService downloadedMovieImportService,
                                    IMediaFileService mediaFileService,
                                    ICustomFormatCalculationService formatCalculator,
@@ -65,6 +68,7 @@ namespace NzbDrone.Core.MediaFiles.MovieImport.Manual
             _aggregationService = aggregationService;
             _importApprovedMovie = importApprovedMovie;
             _trackedDownloadService = trackedDownloadService;
+            _provideImportItemService = provideImportItemService;
             _downloadedMovieImportService = downloadedMovieImportService;
             _mediaFileService = mediaFileService;
             _formatCalculator = formatCalculator;
@@ -105,7 +109,7 @@ namespace NzbDrone.Core.MediaFiles.MovieImport.Manual
         {
             if (downloadId.IsNotNullOrWhiteSpace())
             {
-                var trackedDownload = _trackedDownloadService.Find(downloadId);
+                var trackedDownload = GetTrackedDownload(downloadId);
 
                 if (trackedDownload == null)
                 {
@@ -207,7 +211,7 @@ namespace NzbDrone.Core.MediaFiles.MovieImport.Manual
 
             if (downloadId.IsNotNullOrWhiteSpace())
             {
-                var trackedDownload = _trackedDownloadService.Find(downloadId);
+                var trackedDownload = GetTrackedDownload(downloadId);
                 downloadClientItem = trackedDownload.DownloadItem;
 
                 if (movie == null)
@@ -294,7 +298,7 @@ namespace NzbDrone.Core.MediaFiles.MovieImport.Manual
                         null);
                 }
 
-                var importDecisions = _importDecisionMaker.GetImportDecisions(new List<string> { file }, movie, trackedDownload?.DownloadItem, null, SceneSource(movie, baseFolder));
+                var importDecisions = _importDecisionMaker.GetImportDecisions(new List<string> { file }, movie, trackedDownload?.DownloadItem, null, SceneSource(movie, baseFolder), true, false);
 
                 if (importDecisions.Any())
                 {
@@ -346,6 +350,11 @@ namespace NzbDrone.Core.MediaFiles.MovieImport.Manual
             if (downloadId.IsNotNullOrWhiteSpace())
             {
                 var trackedDownload = _trackedDownloadService.Find(downloadId);
+
+                if (trackedDownload != null && trackedDownload.ImportItem == null)
+                {
+                    trackedDownload.ImportItem = _provideImportItemService.ProvideImportItem(trackedDownload.DownloadItem, null);
+                }
 
                 return trackedDownload;
             }
@@ -434,7 +443,7 @@ namespace NzbDrone.Core.MediaFiles.MovieImport.Manual
 
                 if (file.DownloadId.IsNotNullOrWhiteSpace())
                 {
-                    trackedDownload = _trackedDownloadService.Find(file.DownloadId);
+                    trackedDownload = GetTrackedDownload(file.DownloadId);
                     localMovie.DownloadClientMovieInfo = trackedDownload?.RemoteMovie?.ParsedMovieInfo;
                     localMovie.DownloadItem = trackedDownload?.DownloadItem;
                 }
@@ -461,6 +470,8 @@ namespace NzbDrone.Core.MediaFiles.MovieImport.Manual
 
                 localMovie.CustomFormats = _formatCalculator.ParseCustomFormat(localMovie);
                 localMovie.CustomFormatScore = localMovie.Movie.QualityProfile?.CalculateCustomFormatScore(localMovie.CustomFormats) ?? 0;
+
+                RuntimeReviewSpecification.Observe(_logger, localMovie, trackedDownload?.DownloadItem, null, "manual-import");
 
                 // TODO: Cleanup non-tracked downloads
                 var importDecision = new ImportDecision(localMovie);

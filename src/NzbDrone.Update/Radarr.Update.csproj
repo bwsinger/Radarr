@@ -11,4 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\NzbDrone.Common\Radarr.Common.csproj" />
   </ItemGroup>
+  <ItemGroup Condition="!$(RuntimeIdentifier.StartsWith('win'))">
+    <ProjectReference Include="..\NzbDrone.Mono\Radarr.Mono.csproj" />
+  </ItemGroup>
 </Project>

@@ -12,6 +12,7 @@ namespace NzbDrone.Core.Download.History
     {
         bool DownloadAlreadyImported(string downloadId);
         DownloadHistory GetLatestDownloadHistoryItem(string downloadId);
+        DownloadHistory GetLatestEvent(string downloadId);
         DownloadHistory GetLatestGrab(string downloadId);
     }
 
@@ -83,6 +84,11 @@ namespace NzbDrone.Core.Download.History
             }
 
             return null;
+        }
+
+        public DownloadHistory GetLatestEvent(string downloadId)
+        {
+            return _repository.FindByDownloadId(downloadId).FirstOrDefault();
         }
 
         public DownloadHistory GetLatestGrab(string downloadId)

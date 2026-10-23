@@ -19,6 +19,7 @@ namespace NzbDrone.Core.MediaFiles.MovieImport
         List<ImportDecision> GetImportDecisions(List<string> videoFiles, Movie movie, bool filterExistingFiles);
         List<ImportDecision> GetImportDecisions(List<string> videoFiles, Movie movie, DownloadClientItem downloadClientItem, ParsedMovieInfo folderInfo, bool sceneSource);
         List<ImportDecision> GetImportDecisions(List<string> videoFiles, Movie movie, DownloadClientItem downloadClientItem, ParsedMovieInfo folderInfo, bool sceneSource, bool filterExistingFiles);
+        List<ImportDecision> GetImportDecisions(List<string> videoFiles, Movie movie, DownloadClientItem downloadClientItem, ParsedMovieInfo folderInfo, bool sceneSource, bool filterExistingFiles, bool videoFileInventoryComplete);
         ImportDecision GetDecision(LocalMovie localMovie, DownloadClientItem downloadClientItem);
     }
 
@@ -69,6 +70,11 @@ namespace NzbDrone.Core.MediaFiles.MovieImport
 
         public List<ImportDecision> GetImportDecisions(List<string> videoFiles, Movie movie, DownloadClientItem downloadClientItem, ParsedMovieInfo folderInfo, bool sceneSource, bool filterExistingFiles)
         {
+            return GetImportDecisions(videoFiles, movie, downloadClientItem, folderInfo, sceneSource, filterExistingFiles, true);
+        }
+
+        public List<ImportDecision> GetImportDecisions(List<string> videoFiles, Movie movie, DownloadClientItem downloadClientItem, ParsedMovieInfo folderInfo, bool sceneSource, bool filterExistingFiles, bool videoFileInventoryComplete)
+        {
             var newFiles = filterExistingFiles ? _mediaFileService.FilterExistingFiles(videoFiles.ToList(), movie) : videoFiles.ToList();
 
             _logger.Debug("Analyzing {0}/{1} files.", newFiles.Count, videoFiles.Count);
@@ -95,7 +101,8 @@ namespace NzbDrone.Core.MediaFiles.MovieImport
                     Path = file,
                     SceneSource = sceneSource,
                     ExistingFile = movie.Path.IsParentPath(file),
-                    OtherVideoFiles = nonSampleVideoFileCount > 1
+                    OtherVideoFiles = nonSampleVideoFileCount > 1,
+                    OtherVideoFilesKnown = videoFileInventoryComplete
                 };
 
                 decisions.AddIfNotNull(GetDecision(localMovie, downloadClientItem, nonSampleVideoFileCount > 1));

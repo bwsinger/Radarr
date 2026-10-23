@@ -38,10 +38,13 @@ namespace NzbDrone.Core.Test.HistoryTests
 
             history.Data.Add("key1", "value1");
             history.Data.Add("key2", "value2");
+            history.Data.Add("DevRecovery", "minimum-format-score");
 
             Subject.Insert(history);
 
-            StoredModel.Data.Should().HaveCount(2);
+            StoredModel.Data.Should().HaveCount(3);
+            StoredModel.Data.Should().ContainKey("devRecovery");
+            StoredModel.Data["devRecovery"].Should().Be("minimum-format-score");
         }
 
         [Test]
