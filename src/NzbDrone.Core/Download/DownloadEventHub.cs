@@ -74,6 +74,20 @@ namespace NzbDrone.Core.Download
             var downloadClient = _downloadClientProvider.Get(trackedDownload.DownloadClient);
             var definition = downloadClient.Definition as DownloadClientDefinition;
 
+            // Cleanup retries must not republish the failure or repeat replacement searches.
+            if (trackedDownload.State == TrackedDownloadState.Failed)
+            {
+                if (trackedDownload.PreserveFilesOnFailure &&
+                    !trackedDownload.DownloadItem.Removed &&
+                    trackedDownload.DownloadItem.CanBeRemoved &&
+                    definition.RemoveFailedDownloads)
+                {
+                    RemoveFromDownloadClient(trackedDownload, downloadClient, false);
+                }
+
+                return;
+            }
+
             if (trackedDownload.DownloadItem.Removed ||
                 !trackedDownload.DownloadItem.CanBeRemoved ||
                 !definition.RemoveCompletedDownloads)

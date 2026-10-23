@@ -49,3 +49,8 @@ that decision-engine path.
 - Runtime updated to 8.0.32 and PKCS to 8.0.2. Existing ImageSharp audit
   warnings remain visible. For this explicitly accepted partial update, publish
   used `WarningsNotAsErrors=NU1902;NU1903`; no audit suppression is committed.
+
+- Preserved the deployed download-recovery and runtime-observation patches.
+  Broader validation passed 1,174 tests with 15 platform skips and the same
+  previously documented upstream `broken_report_shouldnt_blowup_the_process`
+  failure. Both independent reviewers found no blockers in the preserved code.

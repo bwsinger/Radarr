@@ -95,7 +95,8 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         {
             var existingItem = Find(downloadItem.DownloadId);
 
-            if (existingItem != null && existingItem.State != TrackedDownloadState.Downloading)
+            if (existingItem != null && existingItem.State != TrackedDownloadState.Downloading &&
+                existingItem.State != TrackedDownloadState.Failed)
             {
                 LogItemChange(existingItem, existingItem.DownloadItem, downloadItem);
 
@@ -105,10 +106,20 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                 return existingItem;
             }
 
+            // A failed history read must leave this poll unprocessed, not cache a guessed state.
+            var downloadHistory = _downloadHistoryService.GetLatestDownloadHistoryItem(downloadItem.DownloadId);
+            var latestDownloadHistory = _downloadHistoryService.GetLatestEvent(downloadItem.DownloadId);
+            var historyItems = _historyService.FindByDownloadId(downloadItem.DownloadId)
+                .OrderByDescending(h => h.Date)
+                .ThenByDescending(h => h.Id)
+                .ToList();
+
             var trackedDownload = new TrackedDownload
             {
                 DownloadClient = downloadClient.Id,
                 DownloadItem = downloadItem,
+                ImportItem = existingItem?.ImportItem,
+                State = existingItem?.State ?? TrackedDownloadState.Downloading,
                 Protocol = downloadClient.Protocol,
                 IsTrackable = true,
                 HasNotifiedManualInteractionRequired = existingItem?.HasNotifiedManualInteractionRequired ?? false
@@ -116,13 +127,21 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
             try
             {
-                var downloadHistory = _downloadHistoryService.GetLatestDownloadHistoryItem(downloadItem.DownloadId);
-
                 if (downloadHistory != null)
                 {
                     var state = GetStateFromHistory(downloadHistory.EventType);
                     trackedDownload.State = state;
                 }
+
+                // Restore terminal state and cleanup eligibility before parsing can fail.
+                var latestHistory = historyItems.FirstOrDefault();
+                trackedDownload.PreserveFilesOnFailure =
+                    latestDownloadHistory?.EventType == DownloadHistoryEventType.DownloadFailed &&
+                    latestDownloadHistory.DownloadClientId == downloadClient.Id &&
+                    latestDownloadHistory.MovieId > 0 &&
+                    latestDownloadHistory.MovieId == latestHistory?.MovieId &&
+                    latestHistory?.EventType == MovieHistoryEventType.DownloadFailed &&
+                    (latestHistory.Data.GetValueOrDefault("devRecovery") ?? latestHistory.Data.GetValueOrDefault("DevRecovery")) == "minimum-format-score";
 
                 var parsedMovieInfo = Parser.Parser.ParseMovieTitle(trackedDownload.DownloadItem.Title);
 
@@ -133,13 +152,10 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                         : _parsingService.Map(parsedMovieInfo, "", 0, null);
                 }
 
-                var historyItems = _historyService.FindByDownloadId(downloadItem.DownloadId)
-                    .OrderByDescending(h => h.Date)
-                    .ToList();
-
                 if (historyItems.Any())
                 {
                     var firstHistoryItem = historyItems.First();
+
                     var grabbedEvent = historyItems.FirstOrDefault(v => v.EventType == MovieHistoryEventType.Grabbed);
 
                     trackedDownload.Indexer = grabbedEvent?.Data?.GetValueOrDefault("indexer");

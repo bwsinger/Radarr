@@ -34,8 +34,16 @@ only covers part of a feature, keep and document only the remaining difference.
   its payload, because another torrent or the media library can share it.
   Retained rejected payloads require separate, deliberate cleanup. Never remove
   an existing library file as a side effect of rejecting a download.
+- Retry cleanup only for a current client item whose latest durable failure
+  carries `DevRecovery=minimum-format-score`. Respect failed-removal settings
+  and native seed readiness on retries; retain payload and never replay failure
+  history, blocklisting or replacement searches. New grabs/imports supersede it.
 
 - Episode-number/title parsing does not apply to Radarr (movies).
+- Observe all new-download runtime comparisons at ±15% using existing media
+  info; log `DevRuntimeReview` without rejecting or changing identity matching.
+  See `dev/runtime-review.md`. Tune the range from reviewed passing/flagged
+  observations before considering enforcement; preserve cut/multipart context.
 - Benefit metrics use existing History.Data: `DevMetricsVersion=1` on successful
   new-download imports, and `DevRecovery=minimum-format-score` on custom score
   failures. Log `DevBenefit` after saving those failures. These are recovery
@@ -61,8 +69,10 @@ only covers part of a feature, keep and document only the remaining difference.
   Do not merge a separately published platform tree over the application.
 - Run the relevant existing Core test fixtures for all changed paths, including
   failure recovery, rejection specifications and (Sonarr) episode aggregation.
-- All changes require independent critical review of correctness, data safety
-  and regression coverage. Fix findings and repeat review until clean.
+- Every Radarr code change requires at least two independent review agents
+  critiquing correctness, data safety and regression coverage. The overseeing
+  agent resolves findings and repeats independent review of refinements until
+  satisfied that no material issues remain.
 - Stack integration lives in `media-server-v2/compose/mserver/radarr-dev.yml`.
   Existing production URL, host port and internal `radarr` DNS alias remain
   available. Dev configuration is separate under `appdata/radarr-dev`.

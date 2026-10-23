@@ -119,6 +119,17 @@ namespace NzbDrone.Core.Test.MediaFiles.MovieImport
         }
 
         [Test]
+        public void should_not_treat_an_86_minute_feature_as_a_sample_of_a_173_minute_movie()
+        {
+            _movie.Runtime = 173;
+            _localMovie.Path = "The.Odyssey.2026.1080p.WEB-DL-Kitsune.mkv";
+            GivenRuntime(5163);
+
+            // A full-length different movie is not a sample; identity needs a separate check.
+            ShouldBeNotSample();
+        }
+
+        [Test]
         public void should_return_false_if_runtime_greater_than_webisode_minimum()
         {
             _movie.Runtime = 6;

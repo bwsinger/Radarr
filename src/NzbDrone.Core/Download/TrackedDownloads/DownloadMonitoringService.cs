@@ -121,6 +121,13 @@ namespace NzbDrone.Core.Download.TrackedDownloads
                     _trackedDownloadService.TrackDownload((DownloadClientDefinition)downloadClient.Definition,
                         downloadItem);
 
+                // Retry only an observed torrent with a current durable custom failure.
+                // Publishing cleanup alone does not repeat failure history, blocklisting or searches.
+                if (trackedDownload is { State: TrackedDownloadState.Failed, PreserveFilesOnFailure: true })
+                {
+                    _eventAggregator.PublishEvent(new DownloadCanBeRemovedEvent(trackedDownload));
+                }
+
                 if (trackedDownload is { State: TrackedDownloadState.Downloading or TrackedDownloadState.ImportBlocked })
                 {
                     _failedDownloadService.Check(trackedDownload);
