@@ -49,13 +49,16 @@ only covers part of a feature, keep and document only the remaining difference.
 
 - Exact .NET SDK version is in `global.json`. This server's side-by-side SDKs
   are at `$HOME/.local/share/arr-dev-dotnet/dotnet`.
-- `dev/build.sh` builds the patched Core assembly and `radarr-dev:local`.
+- `dev/build.sh` publishes the complete patched application/runtime and updater,
+  then builds `radarr-dev:local`.
   Set `DOTNET_BIN` to use another compatible SDK installation.
-- `docker compose build` only packages the existing DLL; it does not compile
+- `docker compose build` only packages the existing publish output; it does not compile
   source. Always run `dev/build.sh` after source changes before recreating.
-- The image overlays only `Radarr.Core.dll` on the pinned LinuxServer image.
-  This preserves the matching official UI/runtime/native components. If a future
-  patch changes another assembly or UI, extend the build explicitly.
+- The image retains the matching official UI and media probe from the pinned
+  LinuxServer image, and replaces its managed/native .NET runtime with the full
+  self-contained publish. Console and updater must each reference the Mono
+  platform project so NuGet resolves a single dependency graph per executable.
+  Do not merge a separately published platform tree over the application.
 - Run the relevant existing Core test fixtures for all changed paths, including
   failure recovery, rejection specifications and (Sonarr) episode aggregation.
 - All changes require independent critical review of correctness, data safety

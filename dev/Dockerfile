@@ -4,4 +4,7 @@ ARG DEV_REVISION
 LABEL org.opencontainers.image.source="https://github.com/bwsinger/Radarr" \
       org.opencontainers.image.revision="${DEV_REVISION}" \
       media-server.custom-features="import-minimum-score"
-COPY .dev-build/Radarr.Core.dll /app/radarr/bin/Radarr.Core.dll
+# Preserve the matching upstream UI while replacing the full self-contained runtime.
+RUN find /app/radarr/bin -mindepth 1 -maxdepth 1 ! -name UI ! -name ffprobe ! -name LICENSE ! -name LICENSE.md -exec rm -rf {} +
+COPY .dev-build/ /app/radarr/bin/
+RUN chmod -R a+rX /app/radarr/bin

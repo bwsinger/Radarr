@@ -2,4 +2,4 @@
 !dev/
 !dev/Dockerfile
 !.dev-build/
-!.dev-build/*.Core.dll
+!.dev-build/**
