@@ -34,8 +34,17 @@ only covers part of a feature, keep and document only the remaining difference.
   its payload, because another torrent or the media library can share it.
   Retained rejected payloads require separate, deliberate cleanup. Never remove
   an existing library file as a side effect of rejecting a download.
+- Completed, application-grabbed single-video torrents may also recover from
+  `ZeroFilledVideo`: a failed sample probe plus a stable-sized MKV/MP4/M4V
+  with zero-filled 64 KiB header, middle and tail samples. Require exact grabbed
+  identity and safe import results; retain payload and library files. Generic
+  probe errors, incomplete downloads, mixed results and ambiguous packs remain
+  manual. Radarr direct-file imports with unknown inventory also remain manual;
+  folder imports with one known video are eligible. Record `DevRecovery=zero-filled-video` and
+  `DevBenefit outcome=zero-filled-recovery`, separately from score metrics.
 - Retry cleanup only for a current client item whose latest durable failure
-  carries `DevRecovery=minimum-format-score`. Respect failed-removal settings
+  carries `DevRecovery=minimum-format-score` or `DevRecovery=zero-filled-video`.
+  Respect failed-removal settings
   and native seed readiness on retries; retain payload and never replay failure
   history, blocklisting or replacement searches. New grabs/imports supersede it.
 

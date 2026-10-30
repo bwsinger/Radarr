@@ -54,3 +54,25 @@ that decision-engine path.
   Broader validation passed 1,174 tests with 15 platform skips and the same
   previously documented upstream `broken_report_shouldnt_blowup_the_process`
   failure. Both independent reviewers found no blockers in the preserved code.
+
+## Zero-filled completed-video recovery — 2026-10-30
+
+- 185 focused tests passed, zero failures/skips, covering detector, sample
+  classification, completed/failed imports, durable restart restoration, history,
+  payload-preserving removal, blocklisting and adjacent aggregation paths.
+- Two independent reviewers found no material correctness or data-safety issues.
+- Failed probes only get the new typed rejection when a completed MKV/MP4/M4V
+  is at least 1 MiB and stable-sized, with zero-filled 64 KiB header, middle and
+  tail samples. Filesystem/permission errors and changing files remain manual.
+- Automatic recovery requires a single mapped video, exact grabbed identity,
+  safe rejection results and a path inside the resolved download. Payload and
+  existing library files are preserved; normal failed-download settings apply.
+- `DevRecovery=zero-filled-video` and `DevBenefit outcome=zero-filled-recovery`
+  distinguish this recovery from score failures. Cleanup restores only the latest
+  matching durable failure and never repeats failure events/searches on retry.
+- No pre-download torrent-metadata filtering or blanket unreadable-file cleanup.
+- Existing ImageSharp NU1902/NU1903 advisories remain visible. Validation uses
+  command-line `-p:WarningsNotAsErrors=NU1902%3BNU1903`, following the existing
+  build precedent; no audit suppression or dependency change is committed.
+- Direct-file imports with unknown video inventory remain manual; folder imports
+  with exactly one known video are eligible.

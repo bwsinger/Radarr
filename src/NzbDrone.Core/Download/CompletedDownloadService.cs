@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using NLog;
+using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
@@ -163,20 +164,29 @@ namespace NzbDrone.Core.Download
                 .Where(h => h.EventType == MovieHistoryEventType.Grabbed).ToList();
             var movieId = trackedDownload.RemoteMovie.Movie.Id;
 
+            var zeroFilled = importResults.Any(r => r.ImportDecision.Rejections.Any(rejection => rejection.Reason == ImportRejectionReason.ZeroFilledVideo));
+            var local = importResults[0].ImportDecision.LocalMovie;
+            var safeZeroFilled = !zeroFilled ||
+                (importResults.Count == 1 && trackedDownload.DownloadItem.RemainingSize == 0 &&
+                 local is { OtherVideoFiles: false, OtherVideoFilesKnown: true } &&
+                 trackedDownload.ImportItem.OutputPath.Contains(new OsPath(local.Path)));
+
             // Fail only unambiguously rejected downloads that Radarr grabbed. Mixed results
             // (including locked, unparseable, or partially imported files) need manual review.
-            if (trackedDownload.Protocol == DownloadProtocol.Torrent &&
+            if (safeZeroFilled && trackedDownload.Protocol == DownloadProtocol.Torrent &&
                 trackedDownload.DownloadItem.Status == DownloadItemStatus.Completed &&
                 importResults.All(r => r.Result == ImportResultType.Rejected &&
                     r.ImportDecision.LocalMovie is { ExistingFile: false } &&
                     r.ImportDecision.LocalMovie.Movie?.Id == movieId &&
                     r.ImportDecision.Rejections.Any() &&
-                    r.ImportDecision.Rejections.All(rejection => rejection.Reason == ImportRejectionReason.BelowMinimumCustomFormatScore)) &&
+                    r.ImportDecision.Rejections.All(rejection => rejection.Reason == ImportRejectionReason.BelowMinimumCustomFormatScore ||
+                        rejection.Reason == ImportRejectionReason.ZeroFilledVideo)) &&
                 movieId > 0 && grabbedHistory.Any() && grabbedHistory.All(h => h.MovieId == movieId))
             {
                 // Download client inventories may omit other categories or applications sharing
                 // the same files. Remove the torrent, but never delete data on this failure path.
                 trackedDownload.PreserveFilesOnFailure = true;
+                trackedDownload.HasZeroFilledVideo = zeroFilled;
                 trackedDownload.Fail();
                 return;
             }

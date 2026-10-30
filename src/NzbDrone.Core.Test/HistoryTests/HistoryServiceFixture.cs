@@ -43,9 +43,10 @@ namespace NzbDrone.Core.Test.HistoryTests
             quality.Should().BeNull();
         }
 
-        [TestCase(true)]
-        [TestCase(false)]
-        public void should_attribute_only_custom_score_recovery(bool customRecovery)
+        [TestCase(true, false)]
+        [TestCase(false, false)]
+        [TestCase(true, true)]
+        public void should_attribute_distinct_custom_recovery_failures(bool customRecovery, bool zeroFilled)
         {
             var message = new DownloadFailedEvent
             {
@@ -54,6 +55,7 @@ namespace NzbDrone.Core.Test.HistoryTests
                 TrackedDownload = new TrackedDownload
                 {
                     PreserveFilesOnFailure = customRecovery,
+                    HasZeroFilledVideo = zeroFilled,
                     DownloadItem = new DownloadClientItem { DownloadClientInfo = new DownloadClientItemClientInfo() }
                 }
             };
@@ -64,7 +66,7 @@ namespace NzbDrone.Core.Test.HistoryTests
                 r => r.Insert(It.Is<MovieHistory>(h =>
                     h.EventType == MovieHistoryEventType.DownloadFailed && h.MovieId == 123 &&
                     h.Data.ContainsKey("DevRecovery") == customRecovery &&
-                    (!customRecovery || h.Data["DevRecovery"] == "minimum-format-score"))),
+                    (!customRecovery || h.Data["DevRecovery"] == (zeroFilled ? "zero-filled-video" : "minimum-format-score")))),
                 Times.Once());
         }
 

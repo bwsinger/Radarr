@@ -26,5 +26,6 @@ public enum ImportRejectionReason
     NotQualityUpgrade,
     NotRevisionUpgrade,
     NotCustomFormatUpgrade,
-    BelowMinimumCustomFormatScore
+    BelowMinimumCustomFormatScore,
+    ZeroFilledVideo
 }
