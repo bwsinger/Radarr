@@ -7,6 +7,8 @@ using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Core.Test.Framework;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace NzbDrone.Core.Test.MediaCoverTests
 {
@@ -46,6 +48,72 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                 image.Height.Should().Be(170);
                 image.Width.Should().Be(170);
             }
+        }
+
+        [TestCase("jpg")]
+        [TestCase("png")]
+        [TestCase("webp")]
+        public void should_resize_supported_covers_and_preserve_aspect_ratio(string format)
+        {
+            var source = Path.Combine(TempFolder, "cover." + format);
+            var destination = Path.Combine(TempFolder, "thumbnail.jpg");
+
+            using (var image = new Image<Rgba32>(40, 20))
+            {
+                image.Save(source);
+            }
+
+            Subject.Resize(source, destination, 10);
+
+            using var thumbnail = Image.Load(destination);
+            thumbnail.Width.Should().Be(20);
+            thumbnail.Height.Should().Be(10);
+        }
+
+        [TestCase("tiff")]
+        [TestCase("bmp")]
+        [TestCase("gif")]
+        [TestCase("tga")]
+        [TestCase("pbm")]
+        public void should_reject_unsupported_formats_even_when_named_as_jpeg(string format)
+        {
+            var source = Path.Combine(TempFolder, "cover." + format);
+            var disguised = Path.Combine(TempFolder, "disguised.jpg");
+            var destination = Path.Combine(TempFolder, "thumbnail.jpg");
+
+            using (var image = new Image<Rgba32>(40, 20))
+            {
+                image.Save(source);
+            }
+
+            File.Copy(source, disguised);
+            File.WriteAllText(destination, "Previous partial thumbnail");
+
+            Assert.Throws<UnknownImageFormatException>(() => Subject.Resize(disguised, destination, 10));
+            File.Exists(destination).Should().BeFalse();
+
+            // The resizer must not change ImageSharp's global decoder configuration.
+            using var original = Image.Load(disguised);
+            original.Width.Should().Be(40);
+        }
+
+        [Test]
+        public void should_not_copy_untrusted_metadata_to_thumbnails()
+        {
+            var source = Path.Combine(TempFolder, "cover.jpg");
+            var destination = Path.Combine(TempFolder, "thumbnail.jpg");
+
+            using (var image = new Image<Rgba32>(40, 20))
+            {
+                image.Metadata.ExifProfile = new ExifProfile();
+                image.Metadata.ExifProfile.SetValue(ExifTag.ImageDescription, "Untrusted cover metadata");
+                image.Save(source);
+            }
+
+            Subject.Resize(source, destination, 10);
+
+            using var thumbnail = Image.Load(destination);
+            thumbnail.Metadata.ExifProfile.Should().BeNull();
         }
 
         [Test]
