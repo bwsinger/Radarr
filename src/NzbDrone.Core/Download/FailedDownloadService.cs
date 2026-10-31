@@ -94,7 +94,11 @@ namespace NzbDrone.Core.Download
 
             var failure = "Failed download detected";
 
-            if (trackedDownload.PreserveFilesOnFailure)
+            if (trackedDownload.PreserveFilesOnFailure && trackedDownload.HasZeroFilledVideo)
+            {
+                failure = "Downloaded video is zero-filled (download data retained)";
+            }
+            else if (trackedDownload.PreserveFilesOnFailure)
             {
                 failure = "Downloaded files are below the minimum custom format score (download data retained)";
             }

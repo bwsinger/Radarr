@@ -107,6 +107,19 @@ namespace NzbDrone.Core.Test.Download.FailedDownloadServiceTests
             _trackedDownload.State.Should().NotBe(TrackedDownloadState.Failed);
         }
 
+        [Test]
+        public void should_publish_zero_filled_failure_with_replacement_and_payload_preservation()
+        {
+            _trackedDownload.PreserveFilesOnFailure = true;
+            _trackedDownload.HasZeroFilledVideo = true;
+            Subject.ProcessFailed(_trackedDownload);
+            Mocker.GetMock<IEventAggregator>().Verify(v => v.PublishEvent(It.Is<DownloadFailedEvent>(e =>
+                e.TrackedDownload.PreserveFilesOnFailure && e.TrackedDownload.HasZeroFilledVideo &&
+                e.Message.Contains("zero-filled") && !e.SkipRedownload)),
+                Times.Once());
+            _trackedDownload.State.Should().Be(TrackedDownloadState.Failed);
+        }
+
         private void AssertDownloadFailed()
         {
             Mocker.GetMock<IEventAggregator>()

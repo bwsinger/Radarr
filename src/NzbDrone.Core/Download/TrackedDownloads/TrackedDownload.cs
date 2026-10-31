@@ -19,6 +19,7 @@ namespace NzbDrone.Core.Download.TrackedDownloads
         public bool IsTrackable { get; set; }
         public bool HasNotifiedManualInteractionRequired { get; set; }
         public bool PreserveFilesOnFailure { get; set; }
+        public bool HasZeroFilledVideo { get; set; }
 
         public TrackedDownload()
         {

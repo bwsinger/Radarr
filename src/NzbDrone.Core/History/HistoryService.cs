@@ -322,14 +322,14 @@ namespace NzbDrone.Core.History
             if (message.TrackedDownload?.PreserveFilesOnFailure == true)
             {
                 history.Data.Add("DevMetricsVersion", "1");
-                history.Data.Add("DevRecovery", "minimum-format-score");
+                history.Data.Add("DevRecovery", message.TrackedDownload.HasZeroFilledVideo ? "zero-filled-video" : "minimum-format-score");
             }
 
             _historyRepository.Insert(history);
 
-            if (history.Data.ContainsKey("DevRecovery"))
+            if (history.Data.TryGetValue("DevRecovery", out var recovery))
             {
-                _logger.Info("DevBenefit outcome=score-recovery fix=minimum-format-score movieId={0} historyId={1} downloadId={2}", history.MovieId, history.Id, history.DownloadId);
+                _logger.Info("DevBenefit outcome={0} fix={1} movieId={2} historyId={3} downloadId={4}", recovery == "zero-filled-video" ? "zero-filled-recovery" : "score-recovery", recovery, history.MovieId, history.Id, history.DownloadId);
             }
         }
 
