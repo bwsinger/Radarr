@@ -76,3 +76,15 @@ that decision-engine path.
   build precedent; no audit suppression or dependency change is committed.
 - Direct-file imports with unknown video inventory remain manual; folder imports
   with exactly one known video are eligible.
+
+## Incomplete already-imported diagnostics — 2026-11-09
+
+- A Sonarr partial-season incident exposed unhelpful duplicate-import warnings.
+  Radarr has no episode parser, but shares the single-file warning short-circuit.
+- Only typed already-imported rejections bypass the generic single-file handler
+  to show an incomplete-download warning directing users to Manual Import.
+  Completion is still checked first; no failure, blocklisting, search, cleanup
+  or payload deletion is introduced. Mixed/dangerous rejections keep the normal
+  handler. Tests exercise grabbed release context with the real rejection service.
+- Validation: 909 affected download/import tests passed; nine existing platform
+  skips. Two independent reviewers approved both final diffs after refinements.

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FizzWare.NBuilder;
 using FluentAssertions;
 using Moq;
@@ -96,6 +97,81 @@ namespace NzbDrone.Core.Test.Download
             Mocker.GetMock<IParsingService>()
                   .Setup(s => s.GetMovie(It.IsAny<string>()))
                   .Returns(_trackedDownload.RemoteMovie.Movie);
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        public void should_explain_incomplete_already_imported_download_without_completing_it(bool mixedRejections, bool completeHistory)
+        {
+            _trackedDownload.RemoteMovie.Release = new ReleaseInfo();
+            var rejectedImportService = Mocker.Resolve<RejectedImportService>();
+            Mocker.GetMock<IRejectedImportService>()
+                .Setup(s => s.Process(It.IsAny<TrackedDownload>(), It.IsAny<ImportResult>()))
+                .Returns<TrackedDownload, ImportResult>((download, result) => rejectedImportService.Process(download, result));
+
+            var alreadyImported = new ImportResult(
+                new ImportDecision(
+                    new LocalMovie { Path = @"C:\TestPath\Droned.1998.mkv", Movie = _trackedDownload.RemoteMovie.Movie },
+                    new ImportRejection(ImportRejectionReason.MovieAlreadyImported, "Already imported")),
+                "Already imported");
+            var results = new List<ImportResult> { alreadyImported };
+            if (mixedRejections)
+            {
+                results.Add(new ImportResult(
+                    new ImportDecision(
+                        new LocalMovie { Path = @"C:\TestPath\Droned.1998.mkv", Movie = _trackedDownload.RemoteMovie.Movie },
+                        new ImportRejection(ImportRejectionReason.Unknown, "Unknown file")),
+                    "Unknown file"));
+            }
+
+            Mocker.GetMock<IDownloadedMovieImportService>()
+                .Setup(s => s.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Movie>(), It.IsAny<DownloadClientItem>()))
+                .Returns(results);
+            Mocker.GetMock<ITrackedDownloadAlreadyImported>()
+                .Setup(s => s.IsImported(_trackedDownload, It.IsAny<List<MovieHistory>>()))
+                .Returns(completeHistory);
+
+            Subject.Import(_trackedDownload);
+
+            if (completeHistory)
+            {
+                _trackedDownload.State.Should().Be(TrackedDownloadState.Imported);
+                _trackedDownload.StatusMessages.Should().BeEmpty();
+            }
+            else
+            {
+                _trackedDownload.State.Should().Be(TrackedDownloadState.ImportBlocked);
+                _trackedDownload.StatusMessages[0].Messages.Any(m => m.Contains("Manual Import")).Should().Be(!mixedRejections);
+                _trackedDownload.StatusMessages.SelectMany(m => m.Messages).Should().Contain("Already imported");
+                Mocker.GetMock<IEventAggregator>()
+                    .Verify(v => v.PublishEvent<DownloadCompletedEvent>(It.IsAny<DownloadCompletedEvent>()), Times.Never());
+                _trackedDownload.PreserveFilesOnFailure.Should().BeFalse();
+            }
+        }
+
+        [Test]
+        public void should_keep_rejection_handler_for_file_with_already_imported_and_dangerous_rejections()
+        {
+            var result = new ImportResult(
+                new ImportDecision(
+                    new LocalMovie { Path = @"C:\TestPath\Droned.1998.mkv", Movie = _trackedDownload.RemoteMovie.Movie },
+                    new ImportRejection(ImportRejectionReason.MovieAlreadyImported, "Already imported"),
+                    new ImportRejection(ImportRejectionReason.DangerousFile, "Dangerous file")),
+                "Already imported",
+                "Dangerous file");
+            Mocker.GetMock<IDownloadedMovieImportService>()
+                .Setup(s => s.ProcessPath(It.IsAny<string>(), It.IsAny<ImportMode>(), It.IsAny<Movie>(), It.IsAny<DownloadClientItem>()))
+                .Returns(new List<ImportResult> { result });
+            Mocker.GetMock<IRejectedImportService>()
+                .Setup(s => s.Process(_trackedDownload, result))
+                .Returns(true);
+
+            Subject.Import(_trackedDownload);
+
+            Mocker.GetMock<IRejectedImportService>().Verify(s => s.Process(_trackedDownload, result), Times.Once());
+            _trackedDownload.State.Should().NotBe(TrackedDownloadState.Imported);
+            _trackedDownload.StatusMessages.SelectMany(m => m.Messages).Should().NotContain(m => m.Contains("Manual Import"));
         }
 
         [Test]
