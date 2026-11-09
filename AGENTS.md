@@ -49,6 +49,9 @@ only covers part of a feature, keep and document only the remaining difference.
   history, blocklisting or replacement searches. New grabs/imports supersede it.
 
 - Episode-number/title parsing does not apply to Radarr (movies).
+- Already-imported-only incomplete downloads explain the mapping/history
+  mismatch and direct users to Manual Import. Preserve ordinary rejection and
+  dangerous-file handling for mixed results; never auto-fail these downloads.
 - Observe all new-download runtime comparisons at ±15% using existing media
   info; log `DevRuntimeReview` without rejecting or changing identity matching.
   See `dev/runtime-review.md`. Tune the range from reviewed passing/flagged
