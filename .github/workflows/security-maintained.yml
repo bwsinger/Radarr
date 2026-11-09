@@ -1,0 +1,56 @@
+name: Maintained dependency security
+
+on:
+  pull_request:
+    branches: [media-server-main]
+  push:
+    branches: [media-server-main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.421
+      - name: Select audit SDK in this disposable checkout
+        run: |
+          printf '%s\n' '{"sdk":{"version":"8.0.421","rollForward":"latestPatch"}}' > global.json
+      - name: Audit direct and transitive NuGet dependencies
+        run: |
+          dotnet restore src/NzbDrone.Core/Radarr.Core.csproj -p:NuGetAudit=true -p:NuGetAuditMode=all -p:TreatWarningsAsErrors=false
+          dotnet list src/NzbDrone.Core/Radarr.Core.csproj package --vulnerable --include-transitive --format json > nuget-audit.json
+          python3 - <<'PYTHON'
+          import json
+          data=json.load(open('nuget-audit.json'))
+          assert data.get('projects'), 'NuGet coverage is empty'
+          if data.get('problems'): raise SystemExit('NuGet vulnerability feed coverage failed')
+          findings=[v for p in data['projects'] for f in p.get('frameworks',[])
+                    for k in ['topLevelPackages','transitivePackages'] for pkg in f.get(k,[])
+                    for v in pkg.get('vulnerabilities',[])]
+          for v in findings: print(v.get('severity'),v.get('advisoryurl'))
+          if any(v.get('severity','').lower() in ['high','critical'] for v in findings):
+              raise SystemExit('High or critical dependency advisories require review')
+          PYTHON
+      - name: Install checksum-pinned Trivy
+        if: always()
+        run: |
+          curl -fsSL --max-time 120 https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz -o /tmp/trivy.tar.gz
+          echo 'e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7  /tmp/trivy.tar.gz' | sha256sum -c -
+          mkdir -p /tmp/security-tools
+          tar -xzf /tmp/trivy.tar.gz -C /tmp/security-tools trivy
+      - name: Audit frontend lockfiles
+        if: always()
+        run: /tmp/security-tools/trivy fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --skip-dirs .git --skip-dirs .dev-build --skip-dirs _temp --timeout 5m .
