@@ -2,14 +2,16 @@
   <!-- Common to all Radarr Projects -->
   <PropertyGroup>
     <AnalysisLevel>6.0-all</AnalysisLevel>
+    <!-- Keep existing enumerable overload binding while upgrading the runtime. -->
+    <LangVersion>13.0</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
 	<ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
 
     <PlatformTarget>AnyCPU</PlatformTarget>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
-    <!-- Security baseline for self-contained .NET 8 publishes. -->
-    <RuntimeFrameworkVersion>8.0.34</RuntimeFrameworkVersion>
+    <!-- Security baseline for self-contained .NET 10 publishes. -->
+    <RuntimeFrameworkVersion>10.0.15</RuntimeFrameworkVersion>
     <RuntimeIdentifiers>win-x64;win-x86;osx-x64;osx-arm64;linux-x64;linux-musl-x64;linux-arm;linux-musl-arm;linux-arm64;linux-musl-arm64</RuntimeIdentifiers>
 
     <RadarrRootDir>$(MSBuildThisFileDirectory)..\</RadarrRootDir>
