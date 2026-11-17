@@ -6,6 +6,7 @@ LABEL org.opencontainers.image.source="https://github.com/bwsinger/Radarr" \
       media-server.custom-features="zero-filled-video-recovery,import-minimum-score"
 # Preserve the matching upstream UI while replacing the full self-contained runtime.
 RUN apk upgrade --no-cache \
+    && apk add --no-cache 'libxslt>=1.1.43-r4' \
     && find /app/radarr/bin -mindepth 1 -maxdepth 1 ! -name UI ! -name ffprobe ! -name LICENSE ! -name LICENSE.md -exec rm -rf {} +
 COPY .dev-build/ /app/radarr/bin/
 RUN chmod -R a+rX /app/radarr/bin

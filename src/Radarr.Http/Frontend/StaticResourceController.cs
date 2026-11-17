@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using Radarr.Http.Extensions;
@@ -13,6 +14,7 @@ namespace Radarr.Http.Frontend
 {
     [Authorize(Policy="UI")]
     [ApiController]
+    [AllowCookieRedirect]
     public class StaticResourceController : Controller
     {
         private readonly IEnumerable<IMapHttpRequestsToDisk> _requestMappers;
